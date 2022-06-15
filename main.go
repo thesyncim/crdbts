@@ -10,7 +10,11 @@ import (
 
 func Search(db orm.DB, term string) ([]*MessageSearch, error) {
 	var messages []*MessageSearch
-	err := db.Model(&messages).Where("text_indexed @> ? ", pg.Array(stem(term))).Select()
+	terms := tokenizer(term)
+	err := db.Model(&messages).
+		Where("text_indexed @> ? ", pg.Array(terms)).
+		OrderExpr("? / array_length(text_indexed,1) DESC", len(terms)).
+		Select()
 	if err != nil {
 		return nil, err
 	}
@@ -24,23 +28,19 @@ type MessageSearch struct {
 }
 
 func (b *MessageSearch) BeforeInsert(ctx context.Context) (context.Context, error) {
-	b.TextIndexed = stem(b.Text)
+	b.TextIndexed = tokenizer(b.Text)
 	return ctx, nil
 }
 
 func (b *MessageSearch) BeforeUpdate(ctx context.Context) (context.Context, error) {
-	b.TextIndexed = stem(b.Text)
+	b.TextIndexed = tokenizer(b.Text)
 	return ctx, nil
 }
 
-func stem(s string) []string {
-	if len(s) == 0 {
-		return nil
-	}
-
-	analiser := AcquireAnalyser()
-	defer ReleaseAnalyser(analiser)
-	tokens := analiser.Analyse(s)
+func tokenizer(s string) []string {
+	analyser := AcquireAnalyser()
+	defer ReleaseAnalyser(analyser)
+	tokens := analyser.Analyse(s)
 	result := make([]string, len(tokens))
 	for i, token := range tokens {
 		result[i] = xbytes.UnsafeString(token.Term)

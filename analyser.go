@@ -4,32 +4,29 @@ import (
 	"github.com/blevesearch/bleve/v2/analysis"
 	"github.com/blevesearch/bleve/v2/analysis/lang/en"
 	"github.com/blevesearch/bleve/v2/analysis/token/lowercase"
-	"github.com/blevesearch/bleve/v2/registry"
+	"github.com/blevesearch/bleve/v2/analysis/token/stop"
 )
 
-type Analyser struct {
-	tokenizer *UnicodeTokenizer
-	analyzer  *analysis.Analyzer
+var (
+	stopWordsMap = make(analysis.TokenMap, 256)
+)
+
+func init() {
+	_ = stopWordsMap.LoadBytes(en.EnglishStopWords)
 }
 
-var cache = registry.NewCache()
+type Analyser struct {
+	analyzer *analysis.Analyzer
+}
 
 func NewAnalyser() *Analyser {
-	stopFilter, err := cache.TokenFilterNamed(en.StopName)
-	if err != nil {
-		panic(err)
-	}
-
-	tokenizer := NewUnicodeTokenizer()
-
 	return &Analyser{
-		tokenizer: tokenizer,
 		analyzer: &analysis.Analyzer{
-			Tokenizer: tokenizer,
+			Tokenizer: NewUnicodeTokenizer(),
 			TokenFilters: []analysis.TokenFilter{
 				en.NewPossessiveFilter(),
 				lowercase.NewLowerCaseFilter(),
-				stopFilter,
+				stop.NewStopTokensFilter(stopWordsMap),
 				NewUniqueTermFilter(),
 				NewUnaccentedFilter(),
 				NewEnglishStemmerFilter(),
@@ -42,5 +39,5 @@ func (a *Analyser) Analyse(text string) analysis.TokenStream {
 }
 
 func (a *Analyser) Reset() {
-	a.tokenizer.Reset()
+	a.analyzer.Tokenizer.(*UnicodeTokenizer).Reset()
 }

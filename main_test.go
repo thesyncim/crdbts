@@ -49,6 +49,65 @@ func (tc TestCase) Run(t testing.TB, db *pg.DB) {
 	}
 }
 
+func TestTokenizer(t *testing.T) {
+	var tests = []struct {
+		text     string
+		expected []string
+	}{
+		{
+			text: "the quick brown fox jumps over the lazy dog",
+			expected: []string{
+				"quick", "brown", "fox", "jump", "lazi", "dog",
+			},
+		},
+		{
+			text: "🚲🚲🚲🚲",
+			expected: []string{
+				"🚲",
+			},
+		},
+		{
+			text: "marcelo's 🚲",
+			expected: []string{
+				"marcelo", "🚲",
+			},
+		},
+		{
+			text: "thesyncim@mail.abc",
+			expected: []string{
+				"thesyncim", "mail.abc",
+			},
+		},
+		{
+			text: "#thesyncim",
+			expected: []string{
+				"thesyncim",
+			},
+		},
+		{
+			text: "http://google.pt/search?q=something",
+			expected: []string{
+				"http", "google.pt", "search", "q", "=", "someth",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.text, func(t *testing.T) {
+			tokens := tokenizer(test.text)
+			if len(tokens) != len(test.expected) {
+				t.Logf("%#+v", tokens)
+				t.Fatalf("Expected %d tokens, got %d", len(test.expected), len(tokens))
+			}
+			for i := range tokens {
+				if tokens[i] != test.expected[i] {
+					t.Errorf("Expected %s, got %s", test.expected[i], tokens[i])
+				}
+			}
+		})
+	}
+
+}
+
 func TestSearch(t *testing.T) {
 	db, err := pgutil.NewORM("host=localhost user=chat dbname=chat sslmode=disable port=26257", pgutil.PGSettings{})
 	if err != nil {
@@ -61,7 +120,7 @@ func TestSearch(t *testing.T) {
 				{ID: 2, Text: "lazy fox"},
 			},
 			SearchTerm: "fox lazy",
-			Expected:   []int{1, 2},
+			Expected:   []int{2, 1},
 		},
 		{
 			Records: []*MessageSearch{
@@ -74,10 +133,16 @@ func TestSearch(t *testing.T) {
 		{
 			Records: []*MessageSearch{
 				{ID: 1, Text: "github.com/thesyncim"},
-				{ID: 2, Text: "thesyncim@gmail.com"},
+				{ID: 2, Text: "thesyncim@mail.abc"},
+				{ID: 3, Text: ""},
 			},
 			SearchTerm: "thesyncim",
 			Expected:   []int{1, 2},
+		},
+		{
+			Records:    []*MessageSearch{{ID: 100, Text: "我要一杯啤酒"}},
+			SearchTerm: "我要",
+			Expected:   []int{100},
 		},
 	}
 	for i := range testCases {
@@ -92,7 +157,7 @@ func BenchmarkStemParallel(b *testing.B) {
 	var text = "the quick brown fox jumps over the lazy dog"
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			v := stem(text)
+			v := tokenizer(text)
 			if len(v) != 6 {
 				b.Errorf("Expected length of 6, got %d", len(v))
 			}
