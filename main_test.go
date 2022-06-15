@@ -71,6 +71,14 @@ func TestSearch(t *testing.T) {
 			SearchTerm: "my 🚲",
 			Expected:   []int{1},
 		},
+		{
+			Records: []*MessageSearch{
+				{ID: 1, Text: "github.com/thesyncim"},
+				{ID: 2, Text: "thesyncim@gmail.com"},
+			},
+			SearchTerm: "thesyncim",
+			Expected:   []int{1, 2},
+		},
 	}
 	for i := range testCases {
 		t.Run(testCases[i].SearchTerm, func(t *testing.T) {
